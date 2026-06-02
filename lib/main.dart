@@ -1,4 +1,10 @@
+import 'dart:async';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:pedometer/pedometer.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   runApp(const FitnessApp());
@@ -24,12 +30,115 @@ class FitnessApp extends StatelessWidget {
   }
 }
 
-class FitnessHomePage extends StatelessWidget {
+class FitnessHomePage extends StatefulWidget {
   const FitnessHomePage({super.key});
+
+  @override
+  State<FitnessHomePage> createState() => _FitnessHomePageState();
+}
+
+class _FitnessHomePageState extends State<FitnessHomePage> {
+  static const int _dailyGoal = 8000;
+  static const String _baselineStepsKey = 'baseline_steps';
+  static const String _baselineDateKey = 'baseline_date';
+
+  StreamSubscription<StepCount>? _stepSubscription;
+  int? _sensorStepCount;
+  int? _baselineSteps;
+  String _stepStatus = 'Preparing step tracker...';
+
+  @override
+  void initState() {
+    super.initState();
+    _initStepTracking();
+  }
+
+  Future<void> _initStepTracking() async {
+    final bool hasPermission = await _requestActivityPermission();
+    if (!mounted) {
+      return;
+    }
+
+    if (!hasPermission) {
+      setState(() {
+        _stepStatus = 'Activity permission denied.';
+      });
+      return;
+    }
+
+    _stepSubscription = Pedometer.stepCountStream.listen(
+      (StepCount event) {
+        if (!mounted) {
+          return;
+        }
+        _onStepEvent(event.steps);
+      },
+      onError: (_) {
+        if (!mounted) {
+          return;
+        }
+        setState(() {
+          _stepStatus = 'No live sensor data. Walk a few steps and retry.';
+        });
+      },
+      cancelOnError: false,
+    );
+  }
+
+  Future<bool> _requestActivityPermission() async {
+    if (!Platform.isAndroid) {
+      return true;
+    }
+
+    final PermissionStatus permission = await Permission.activityRecognition
+        .request();
+    return permission.isGranted;
+  }
+
+  Future<void> _onStepEvent(int sensorSteps) async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    final String today = _todayKey();
+    final String? storedDate = prefs.getString(_baselineDateKey);
+    int? baseline = prefs.getInt(_baselineStepsKey);
+
+    if (storedDate != today || baseline == null || baseline > sensorSteps) {
+      baseline = sensorSteps;
+      await prefs.setString(_baselineDateKey, today);
+      await prefs.setInt(_baselineStepsKey, baseline);
+    }
+
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _sensorStepCount = sensorSteps;
+      _baselineSteps = baseline;
+      _stepStatus = 'Live updates enabled';
+    });
+  }
+
+  String _todayKey() {
+    final DateTime now = DateTime.now();
+    final String month = now.month.toString().padLeft(2, '0');
+    final String day = now.day.toString().padLeft(2, '0');
+    return '${now.year}-$month-$day';
+  }
+
+  @override
+  void dispose() {
+    _stepSubscription?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final ColorScheme colors = Theme.of(context).colorScheme;
+    final int steps = _sensorStepCount == null
+        ? 0
+        : (_sensorStepCount! - (_baselineSteps ?? _sensorStepCount!))
+            .clamp(0, 1000000);
+    final double progress = (steps / _dailyGoal).clamp(0, 1).toDouble();
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Healthy Fitness'),
@@ -103,9 +212,11 @@ class FitnessHomePage extends StatelessWidget {
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 12),
-          const _ProgressTile(
+          _ProgressTile(
             label: 'Steps',
-            value: '5,320 / 8,000',
+            value: '$steps / $_dailyGoal',
+            subtitle: _stepStatus,
+            progress: progress,
           ),
           const _ProgressTile(
             label: 'Water',
@@ -146,10 +257,14 @@ class _ProgressTile extends StatelessWidget {
   const _ProgressTile({
     required this.label,
     required this.value,
+    this.subtitle,
+    this.progress,
   });
 
   final String label;
   final String value;
+  final String? subtitle;
+  final double? progress;
 
   @override
   Widget build(BuildContext context) {
@@ -157,6 +272,22 @@ class _ProgressTile extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 10),
       child: ListTile(
         title: Text(label),
+        subtitle: subtitle == null
+            ? null
+            : Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(subtitle!),
+                    if (progress != null) ...[
+                      const SizedBox(height: 8),
+                      LinearProgressIndicator(value: progress),
+                    ],
+                  ],
+                ),
+              ),
         trailing: Text(
           value,
           style: const TextStyle(fontWeight: FontWeight.w600),
