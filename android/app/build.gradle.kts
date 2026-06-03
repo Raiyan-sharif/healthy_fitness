@@ -42,3 +42,13 @@ android {
 flutter {
     source = "../.."
 }
+
+// Apply only when Firebase Android config exists (from Firebase Console or flutterfire configure).
+if (file("google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
+} else {
+    logger.warn(
+        "google-services.json missing — Android build continues without Firebase. " +
+            "Add the file to android/app/ for Google sign-in.",
+    )
+}
