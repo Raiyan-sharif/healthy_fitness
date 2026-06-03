@@ -17,35 +17,30 @@ A Flutter fitness app with Google sign-in, user profiles, workout detail and his
 - A [Firebase](https://console.firebase.google.com/) project with **Authentication → Google** and **Cloud Firestore** enabled
 - Physical phone recommended for step counting
 
-## Firebase setup
+## Firebase setup (required for Google login & history)
 
-1. Create a Firebase project and register Android + iOS apps (bundle ID / package: `com.example.healthy_fitness`).
-2. Enable **Google** as a sign-in provider in Firebase Authentication.
-3. Install CLI tools and generate config:
+You have **not** configured Firebase yet if `lib/firebase_options.dart` still contains `YOUR_*` placeholders.
 
-   ```bash
-   dart pub global activate flutterfire_cli
-   flutterfire configure
-   ```
+**Full step-by-step guide (all platforms):** [docs/FIREBASE_SETUP.md](docs/FIREBASE_SETUP.md)
 
-   This overwrites `lib/firebase_options.dart` and adds `google-services.json` / `GoogleService-Info.plist`.
+### Short version (Android phone — what you use today)
 
-4. **Android**: Add your debug SHA-1 in Firebase Console (Project settings → Your apps → Android → Add fingerprint).  
-   Get SHA-1: `cd android && ./gradlew signingReport`
+| Step | Action |
+|------|--------|
+| 1 | [Firebase Console](https://console.firebase.google.com/) → create project |
+| 2 | Enable **Authentication → Google**; copy **Web client ID** |
+| 3 | Create **Firestore** database |
+| 4 | Register Android app: `com.example.healthy_fitness` |
+| 5 | Run `flutterfire configure` (install CLI first — see guide) |
+| 6 | Add Android **SHA-1**: `cd android && ./gradlew signingReport` |
+| 7 | Run app: `flutter run --dart-define=GOOGLE_WEB_CLIENT_ID=your-web-client-id` |
 
-5. **Firestore**: Create database (test mode for development), then deploy rules:
+**App IDs**
 
-   ```bash
-   firebase deploy --only firestore:rules
-   ```
-
-   Rules file: `firestore.rules` (users can only read/write their own data).
-
-**Manual Android file (if not using FlutterFire):** Download `google-services.json` from Firebase Console → Project settings → Your Android app, and place it at:
-
-`android/app/google-services.json`
-
-See `android/app/google-services.json.example` for the expected shape.
+| Platform | ID |
+|----------|-----|
+| Android | `com.example.healthy_fitness` |
+| iOS / macOS | `com.example.healthyFitness` |
 
 ## Getting started
 
