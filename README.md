@@ -150,4 +150,4 @@ Those lines come from **another app** on the phone (different process ID), not H
 
 ## License
 
-Private project (`publish_to: 'none'`).
+Raiyan Sharif
